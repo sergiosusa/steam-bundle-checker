@@ -8,7 +8,7 @@
 // @match        https://www.fanatical.com/*/bundle/*
 // @match        https://www.indiegala.com/bundle/*
 // @grant        GM_xmlhttpRequest
-// @require https://cdnjs.cloudflare.com/ajax/libs/elasticlunr/0.9.6/elasticlunr.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/elasticlunr/0.9.6/elasticlunr.js
 // ==/UserScript==
 
 const STEAM_USER = '76561198041196449';
@@ -59,12 +59,11 @@ function Checker() {
             let gameName = this.clearGameName(games[x].name);
             let results = myGames.search(gameName);
 
-            if (results.length > 0 && this.exactMatch(results[0].doc.name, gameName))
-            {
+            if (results.length > 0 && this.exactMatch(results[0].doc.name, gameName)) {
                 games[x].url = results[0].doc.url;
                 this.own.push(games[x]);
             } else {
-                games[x].url = results[0].doc.searchUrl+gameName;
+                games[x].url = this.getSearchUrl(gameName);
                 this.notOwn.push(games[x]);
             }
         }
@@ -76,6 +75,10 @@ function Checker() {
 
     this.clearGameName = (gameName) => {
         return gameName.replace('Locked content', '').replace('Product details', '').replace('Detalles del producto').trim();
+    };
+
+    this.getSearchUrl = (gameName) => {
+        return 'https://store.steampowered.com/search/?term=' + gameName;
     };
 }
 
@@ -99,12 +102,12 @@ function HumbleBundle() {
 
     this.addResult = (item, color, text, link) => {
         item.parentElement.style.border = "solid " + color;
-        var responseDiv = document.createElement('div');
+        let responseDiv = document.createElement('div');
         responseDiv.classList.add('left');
         responseDiv.classList.add('bundle-page-tier-item-trading');
 
-         if (link != null) {
-           text = '<a onclick="window.open(\'' + link + '\');" style="cursor:pointer">'+ text+'</a>';
+        if (link != null) {
+            text = '<a onclick="window.open(\'' + link + '\');" style="cursor:pointer">' + text + '</a>';
         }
 
         responseDiv.innerHTML = '<span style="color:' + color + ';margin-left:0;font-weight: bold;background:none;display:inline;margin-left: 17px;">(' + text + ')</span>';
@@ -116,7 +119,7 @@ function HumbleBundle() {
         let games = [];
         let names = document.querySelectorAll('.dd-image-box-white');
 
-        for(var x = 0; x < names.length; x++) {
+        for (let x = 0; x < names.length; x++) {
             games.push(
                 {
                     name: names[x].innerText.replace('Locked content', '').trim(),
@@ -136,10 +139,12 @@ function IndieGala() {
     Checker.call(this);
 
     this.check = (myGames) => {
-
         let games = this.getGamesTitles();
         this.compareGames(games, myGames);
+        this.showResults();
+    };
 
+    this.showResults = () => {
         for (let x = 0; x < this.own.length; x++) {
             this.addResult(this.own[x].node, '#EA242A', 'Own', this.own[x].url);
         }
@@ -151,12 +156,12 @@ function IndieGala() {
 
     this.addResult = (item, color, text, link) => {
         item.parentElement.parentElement.style.border = "solid " + color;
-        var responseDiv = document.createElement('div');
+        let responseDiv = document.createElement('div');
         responseDiv.classList.add('left');
         responseDiv.classList.add('bundle-page-tier-item-trading');
 
-         if (link != null) {
-           text = '<a onclick="window.open(\'' + link + '\');" style="cursor:pointer">'+ text+'</a>';
+        if (link != null) {
+            text = '<a onclick="window.open(\'' + link + '\');" style="cursor:pointer">' + text + '</a>';
         }
 
         responseDiv.innerHTML = '<span style="color:' + color + ';margin-left:0;font-weight: bold;background:none;display:inline;margin-left: 17px;">(' + text + ')</span>';
@@ -168,7 +173,7 @@ function IndieGala() {
         let games = [];
         let images = document.querySelectorAll('.bundle-page-tier-item-col > div > div > figure >img.img-fit');
 
-        for(var x = 0; x < images.length; x++) {
+        for (let x = 0; x < images.length; x++) {
             games.push(
                 {
                     name: images[x].getAttribute('alt'),
@@ -203,10 +208,10 @@ function Fanatical() {
     this.addResult = (item, color, text, link) => {
 
         item.parentElement.parentElement.querySelector('.card-content').style.border = "solid " + color;
-        var responseDiv = document.createElement('div');
+        let responseDiv = document.createElement('div');
 
         if (link != null) {
-           text = '<a onclick="window.open(\'' + link + '\');" style="cursor:pointer">'+ text+'</a>';
+            text = '<a onclick="window.open(\'' + link + '\');" style="cursor:pointer">' + text + '</a>';
         }
 
         responseDiv.innerHTML = '<span style="color:' + color + ';margin-left:0;font-weight: bold;background:none;display:inline;">(' + text + ')</span>';
@@ -218,7 +223,7 @@ function Fanatical() {
         let games = [];
         let cards = document.querySelectorAll('.card-overlay');
 
-        for(var x = 0; x < cards.length; x++) {
+        for (let x = 0; x < cards.length; x++) {
             games.push(
                 {
                     name: cards[x].innerText.replace('Product details', '').replace('Detalles del producto').trim(),
