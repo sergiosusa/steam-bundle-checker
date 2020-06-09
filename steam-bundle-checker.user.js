@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Bundle Checker
 // @namespace    https://sergiosusa.com/
-// @version      0.5
+// @version      0.6
 // @description  Check against your steam library if you have already got the games of humblebundle, indiegala and fanatical bundles.
 // @author       Sergio Susa (sergio@sergiosusa.com)
 // @match        https://www.humblebundle.com/games/*
@@ -59,14 +59,25 @@ function Checker() {
             let gameName = this.clearGameName(games[x].name);
             let results = myGames.search(gameName);
 
-            if (results.length > 0 && this.exactMatch(results[0].doc.name, gameName)) {
-                games[x].url = results[0].doc.url;
+            let result = this.findExactMatch(results, gameName);
+
+            if (result) {
+                games[x].url = result.doc.url;
                 this.own.push(games[x]);
             } else {
                 games[x].url = this.getSearchUrl(gameName);
                 this.notOwn.push(games[x]);
             }
         }
+    };
+
+    this.findExactMatch = (results, gameName) => {
+        for (let y = 0; y < results.length; y++) {
+            if (this.exactMatch(results[y].doc.name, gameName)) {
+                return results[y];
+            }
+        }
+        return null;
     };
 
     this.exactMatch = (resultGame, myGame) => {
