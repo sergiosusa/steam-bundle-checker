@@ -1,31 +1,34 @@
 // ==UserScript==
 // @name         Steam Bundle Checker
 // @namespace    https://sergiosusa.com/
-// @version      0.6
+// @version      0.8
 // @description  Check against your steam library if you have already got the games of humblebundle, indiegala and fanatical bundles.
 // @author       Sergio Susa (sergio@sergiosusa.com)
 // @match        https://www.humblebundle.com/games/*
 // @match        https://www.fanatical.com/*/bundle/*
+// @match        https://www.fanatical.com/*/pick-and-mix/*
 // @match        https://www.indiegala.com/bundle/*
+// @match        http://dailyindiegame.com/site_weeklybundle_*
 // @grant        GM_xmlhttpRequest
 // @require      https://cdnjs.cloudflare.com/ajax/libs/elasticlunr/0.9.6/elasticlunr.js
 // ==/UserScript==
 
-const STEAM_USER = '76561198041196449';
-const STEAM_API_ID = '';
-
 (function () {
     'use strict';
 
-    let steamApi = new SteamAPI();
-    let checkerFactory = new CheckerFactory();
-    let checker = checkerFactory.createChecker(getDomainFromCurrentUrl());
+    try {
+        let steamApi = new SteamAPI();
+        let checkerFactory = new CheckerFactory();
+        let checker = checkerFactory.createChecker(getDomainFromCurrentUrl());
 
-    steamApi.getOwnedGames(STEAM_USER, STEAM_API_ID).then(
-        (games) => {
-            checker.check(games);
-        }
-    );
+        steamApi.getOwnedGames().then(
+            (games) => {
+                checker.check(games);
+            }
+        );
+    } catch (exception) {
+        alert(exception);
+    }
 })();
 
 function CheckerFactory() {
@@ -42,6 +45,9 @@ function CheckerFactory() {
                 break;
             case 'fanatical':
                 checker = new Fanatical();
+                break;
+            case 'dailyindiegame':
+                checker = new DailyIndieGame();
                 break;
         }
         return checker;
@@ -237,7 +243,7 @@ function Fanatical() {
         for (let x = 0; x < cards.length; x++) {
             games.push(
                 {
-                    name: cards[x].innerText.replace('Product details', '').replace('Detalles del producto').trim(),
+                    name: cards[x].innerText.replace('Product details', '').replace('Detalles del producto', '').replace('ADD', '').trim(),
                     node: cards[x]
                 }
             );
@@ -249,17 +255,73 @@ function Fanatical() {
 
 Fanatical.prototype = Object.create(Checker.prototype);
 
+function DailyIndieGame() {
+    Checker.call(this);
+
+    this.check = (myGames) => {
+        let games = this.getGamesTitles();
+        this.compareGames(games, myGames);
+
+        for (let x = 0; x < this.own.length; x++) {
+            this.addResult(this.own[x].node, '#D88000', 'Own', this.own[x].url);
+        }
+
+        for (let y = 0; y < this.notOwn.length; y++) {
+            this.addResult(this.notOwn[y].node, '#18a3ff', 'Not Own', this.notOwn[y].url);
+        }
+
+    };
+
+    this.addResult = (item, color, text, link) => {
+
+        item.style.border = "solid " + color;
+        let responseDiv = document.createElement('div');
+
+        if (link != null) {
+            text = '<a onclick="window.open(\'' + link + '\');" style="cursor:pointer">' + text + '</a>';
+        }
+
+        responseDiv.innerHTML = '<span style="color:' + color + ';margin-left:0;font-weight: bold;background:none;display:inline;">(' + text + ')</span>';
+        item.appendChild(responseDiv);
+
+    };
+
+    this.getGamesTitles = () => {
+        let games = [];
+        let cards = document.querySelectorAll("table td.DIG3_14_Orange span.XDIGcontent");
+
+        for (let x = 0; x < cards.length; x++) {
+            games.push(
+                {
+                    name: cards[x].parentElement.parentElement.innerText.replace('view on STEAM', '').trim(),
+                    node: cards[x].parentElement.parentElement
+                }
+            );
+        }
+        return games;
+
+
+    };
+}
+
+DailyIndieGame.prototype = Object.create(Checker.prototype);
+
 function SteamAPI() {
     const OWN_GAMES_ENDPOINT = 'https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=[STEAM_API_ID]&steamid=[STEAM_USER]&include_appinfo=true';
     const STEAM_GAME_URL = 'https://store.steampowered.com/app/[APP_ID]';
     const STEAM_SEARCH_URL = 'https://store.steampowered.com/search/?term=';
 
-    this.getOwnedGames = (steamUser, steamApiId) => {
+    this.steamUser = null;
+    this.steamApiId = null;
+
+    this.getOwnedGames = () => {
+
+        this.retrieveSteamUserInformation();
 
         return new Promise(((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: "GET",
-                url: OWN_GAMES_ENDPOINT.replace('[STEAM_USER]', steamUser).replace("[STEAM_API_ID]", steamApiId),
+                url: OWN_GAMES_ENDPOINT.replace('[STEAM_USER]', this.steamUser).replace("[STEAM_API_ID]", this.steamApiId),
                 onload: function (response) {
 
                     elasticlunr.addStopWords(['™']);
@@ -288,7 +350,7 @@ function SteamAPI() {
 
                         index.addDoc(doc);
                     }
-                    this.storeGames(steamUser, index);
+                    this.storeGames(this.steamUser, index);
                     resolve(index);
                 }.bind(this)
             });
@@ -299,16 +361,40 @@ function SteamAPI() {
         localStorage.setItem(steamUserId, JSON.stringify(response));
     };
 
-    this.retrieveGames = steamUserId => JSON.parse(localStorage.getItem(steamUserId))
+    this.retrieveGames = steamUserId => JSON.parse(localStorage.getItem(steamUserId));
 
     this.composeGameUrl = (appid) => {
         return STEAM_GAME_URL.replace('[APP_ID]', appid)
-    }
+    };
 
     this.composeSearchUrl = () => {
         return STEAM_SEARCH_URL;
-    }
+    };
+
+    this.retrieveSteamUserInformation = () => {
+        this.steamApiId = this.retrieveOrAskForVariable('steam-api-id');
+        this.steamUser = this.retrieveOrAskForVariable('steam-user');
+    };
+
+    this.retrieveOrAskForVariable = (key) => {
+
+        let variable = localStorage.getItem(key);
+
+        if (null === variable || '' === variable) {
+
+            variable = prompt('Enter the ' + key);
+
+            if (null === variable || '' === variable) {
+                throw key + ' is mandatory.';
+            }
+        }
+
+        localStorage.setItem(key, variable);
+        return variable;
+    };
+
 }
+
 
 function getDomainFromCurrentUrl() {
     let matches = window.location.href.match(/https?:\/\/(www\.)?([-a-zA-Z0-9@:%._+~#=]{2,256})(\.[a-z]{2,6})/i);
